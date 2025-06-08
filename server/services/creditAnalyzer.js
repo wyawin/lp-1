@@ -32,26 +32,17 @@ export async function analyzeCredit(processedResults) {
       documentSummary
     );
 
+    // Validate and sanitize the recommendation
+    const sanitizedRecommendation = sanitizeCreditRecommendation(creditRecommendation);
+
     // Calculate overall risk based on the AI recommendation
-    const overallRisk = creditRecommendation.riskLevel || calculateFallbackRisk(processedResults);
+    const overallRisk = sanitizedRecommendation.riskLevel || calculateFallbackRisk(processedResults);
     
     // Use AI confidence or calculate fallback
-    const confidence = creditRecommendation.confidence || calculateFallbackConfidence(processedResults);
+    const confidence = sanitizedRecommendation.confidence || calculateFallbackConfidence(processedResults);
 
     return {
-      recommendation: {
-        score: creditRecommendation.creditScore,
-        rating: creditRecommendation.rating,
-        riskLevel: creditRecommendation.riskLevel,
-        recommendation: creditRecommendation.recommendation,
-        keyFactors: creditRecommendation.keyFactors || [],
-        improvementSuggestions: creditRecommendation.improvementSuggestions || [],
-        maxCreditLimit: creditRecommendation.maxCreditLimit,
-        interestRate: creditRecommendation.interestRate,
-        reasoning: creditRecommendation.reasoning,
-        analysisModel: creditRecommendation.analysisModel,
-        generatedAt: creditRecommendation.generatedAt
-      },
+      recommendation: sanitizedRecommendation,
       overallRisk,
       confidence,
       documentSummary,
@@ -77,6 +68,46 @@ export async function analyzeCredit(processedResults) {
       }
     };
   }
+}
+
+// Sanitize and validate credit recommendation data
+function sanitizeCreditRecommendation(recommendation) {
+  const sanitized = {
+    score: Math.max(300, Math.min(850, recommendation.creditScore || 650)),
+    rating: validateRating(recommendation.rating) || 'Fair',
+    riskLevel: validateRiskLevel(recommendation.riskLevel) || 'Medium',
+    recommendation: (recommendation.recommendation || '').toString().trim() || 'No recommendation available',
+    keyFactors: sanitizeStringArray(recommendation.keyFactors, 'Positive factor identified'),
+    improvementSuggestions: sanitizeStringArray(recommendation.improvementSuggestions, 'Consider improvement'),
+    maxCreditLimit: Math.max(0, recommendation.maxCreditLimit || 10000),
+    interestRate: Math.max(0, Math.min(50, recommendation.interestRate || 15.0)),
+    reasoning: (recommendation.reasoning || '').toString().trim() || 'Analysis completed',
+    analysisModel: recommendation.analysisModel || 'deepseek-r1:8b',
+    generatedAt: recommendation.generatedAt || new Date().toISOString()
+  };
+
+  return sanitized;
+}
+
+function validateRating(rating) {
+  const validRatings = ['Excellent', 'Good', 'Fair', 'Poor', 'Very Poor'];
+  return validRatings.includes(rating) ? rating : null;
+}
+
+function validateRiskLevel(riskLevel) {
+  const validRiskLevels = ['Low', 'Medium', 'High'];
+  return validRiskLevels.includes(riskLevel) ? riskLevel : null;
+}
+
+function sanitizeStringArray(arr, fallback) {
+  if (!Array.isArray(arr)) return [fallback];
+  
+  const sanitized = arr
+    .filter(item => typeof item === 'string' && item.trim().length > 0)
+    .map(item => item.trim())
+    .slice(0, 6); // Limit to 6 items max
+  
+  return sanitized.length > 0 ? sanitized : [fallback];
 }
 
 // Fallback functions for when AI analysis fails

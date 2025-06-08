@@ -71,110 +71,176 @@ class OllamaClient {
     }
   }
 
+  // Enhanced JSON extraction with multiple fallback strategies
+  extractJSON(text) {
+    if (!text || typeof text !== 'string') {
+      return null;
+    }
+
+    // Strategy 1: Look for complete JSON objects
+    const jsonMatches = text.match(/\{[\s\S]*?\}/g);
+    if (jsonMatches) {
+      for (const match of jsonMatches) {
+        try {
+          const parsed = JSON.parse(match);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
+    // Strategy 2: Look for JSON between code blocks
+    const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+    if (codeBlockMatch) {
+      try {
+        return JSON.parse(codeBlockMatch[1]);
+      } catch (e) {
+        // Continue to next strategy
+      }
+    }
+
+    // Strategy 3: Extract JSON from markdown-like format
+    const lines = text.split('\n');
+    let jsonStart = -1;
+    let jsonEnd = -1;
+    let braceCount = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('{') && jsonStart === -1) {
+        jsonStart = i;
+        braceCount = 1;
+      } else if (jsonStart !== -1) {
+        for (const char of line) {
+          if (char === '{') braceCount++;
+          if (char === '}') braceCount--;
+        }
+        if (braceCount === 0) {
+          jsonEnd = i;
+          break;
+        }
+      }
+    }
+
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      const jsonText = lines.slice(jsonStart, jsonEnd + 1).join('\n');
+      try {
+        return JSON.parse(jsonText);
+      } catch (e) {
+        // Continue to next strategy
+      }
+    }
+
+    // Strategy 4: Try to fix common JSON issues
+    let cleanedText = text
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .replace(/^\s*[\w\s]*?(\{)/m, '$1') // Remove text before first {
+      .replace(/(\})\s*[\w\s]*?$/m, '$1') // Remove text after last }
+      .trim();
+
+    // Fix common JSON formatting issues
+    cleanedText = cleanedText
+      .replace(/,\s*}/g, '}') // Remove trailing commas
+      .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
+      .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Quote unquoted keys
+      .replace(/:\s*([^",{\[\]}\s][^",{\[\]}]*?)(\s*[,}])/g, ':"$1"$2'); // Quote unquoted string values
+
+    try {
+      return JSON.parse(cleanedText);
+    } catch (e) {
+      console.warn('All JSON extraction strategies failed:', e.message);
+      return null;
+    }
+  }
+
   async extractFinancialData(imageBase64, documentType = 'unknown') {
     const prompts = {
       bank_statement: `
-        Analyze this bank statement image and extract the following financial information in JSON format:
+        Analyze this bank statement image and extract the following financial information. 
+        Respond ONLY with valid JSON in this exact format:
         {
-          "accountBalance": number,
-          "monthlyIncome": number,
-          "monthlyExpenses": number,
-          "accountAge": number (in months),
-          "transactionCount": number,
-          "overdraftFees": number,
-          "averageBalance": number,
-          "riskFactors": ["list of identified risk factors"],
-          "keyFindings": ["important observations"],
-          "confidence": number (0-100)
+          "documentType": "bank_statement",
+          "accountBalance": 0,
+          "monthlyIncome": 0,
+          "monthlyExpenses": 0,
+          "accountAge": 0,
+          "transactionCount": 0,
+          "overdraftFees": 0,
+          "averageBalance": 0,
+          "riskFactors": [],
+          "keyFindings": [],
+          "confidence": 85
         }
         
-        Focus on identifying:
-        - Current account balance and available funds
-        - Regular income deposits and their frequency
-        - Monthly expense patterns and spending habits
-        - Any overdraft fees or negative balances
-        - Account age and transaction history depth
-        - Unusual spending patterns or red flags
-        - Payment consistency and reliability indicators
-        
-        Be precise with numerical values and provide confidence scores.
+        Extract numerical values where visible. For riskFactors and keyFindings, use short descriptive strings.
+        Do not include any text before or after the JSON object.
       `,
       
       financial: `
-        Analyze this financial statement and extract key business metrics in JSON format:
+        Analyze this financial statement and extract key business metrics. 
+        Respond ONLY with valid JSON in this exact format:
         {
-          "annualRevenue": number,
-          "netProfit": number,
-          "totalAssets": number,
-          "totalLiabilities": number,
-          "cashFlow": number,
-          "employeeCount": number,
-          "businessAge": number (in years),
-          "debtToEquityRatio": number,
-          "profitMargin": number,
-          "riskFactors": ["list of identified risk factors"],
-          "keyFindings": ["important observations"],
-          "confidence": number (0-100)
+          "documentType": "financial",
+          "annualRevenue": 0,
+          "netProfit": 0,
+          "totalAssets": 0,
+          "totalLiabilities": 0,
+          "cashFlow": 0,
+          "employeeCount": 0,
+          "businessAge": 0,
+          "debtToEquityRatio": 0,
+          "profitMargin": 0,
+          "riskFactors": [],
+          "keyFindings": [],
+          "confidence": 85
         }
         
-        Look for:
-        - Revenue and profit figures across periods
-        - Asset and liability information
-        - Cash flow statements and liquidity
-        - Debt obligations and payment schedules
-        - Business performance indicators and trends
-        - Financial stability markers and ratios
-        - Growth patterns and seasonal variations
-        
-        Extract exact figures where visible and calculate ratios.
+        Extract exact figures where visible. Use 0 for missing values.
+        Do not include any text before or after the JSON object.
       `,
       
       legal: `
-        Analyze this legal document and extract compliance and risk information in JSON format:
+        Analyze this legal document and extract compliance information. 
+        Respond ONLY with valid JSON in this exact format:
         {
-          "documentType": "string",
-          "documentStatus": "Valid/Invalid/Pending/Expired",
-          "expirationDate": "YYYY-MM-DD or null",
-          "legalRisk": "Low/Medium/High",
-          "complianceScore": number (0-100),
-          "keyObligations": ["list of key legal obligations"],
-          "riskFactors": ["list of identified legal risks"],
-          "keyFindings": ["important legal observations"],
-          "confidence": number (0-100)
+          "documentType": "legal",
+          "documentStatus": "Valid",
+          "expirationDate": null,
+          "legalRisk": "Low",
+          "complianceScore": 85,
+          "keyObligations": [],
+          "riskFactors": [],
+          "keyFindings": [],
+          "confidence": 85
         }
         
-        Focus on:
-        - Document validity and current status
-        - Legal obligations and requirements
-        - Compliance issues and violations
-        - Expiration dates and renewal requirements
-        - Legal risks and potential liabilities
-        - Regulatory compliance status
-        - Contract terms and conditions
+        Use "Valid", "Invalid", "Pending", or "Expired" for documentStatus.
+        Use "Low", "Medium", or "High" for legalRisk.
+        Do not include any text before or after the JSON object.
       `,
       
       unknown: `
-        Analyze this document image and determine its type and extract any relevant financial information in JSON format:
+        Analyze this document image and determine its type. 
+        Respond ONLY with valid JSON in this exact format:
         {
-          "documentType": "string (bank_statement/financial/legal/invoice/tax/other)",
-          "confidence": number (0-100),
+          "documentType": "unknown",
+          "confidence": 60,
           "extractedData": {
-            "amounts": ["list of monetary amounts found"],
-            "dates": ["list of dates found"],
-            "entities": ["list of company/person names"]
+            "amounts": [],
+            "dates": [],
+            "entities": []
           },
-          "riskFactors": ["list of any identified risks"],
-          "keyFindings": ["important observations"],
-          "recommendation": "string (what type of document this appears to be and next steps)"
+          "riskFactors": [],
+          "keyFindings": [],
+          "recommendation": ""
         }
         
-        Try to identify:
-        - What type of document this is based on layout and content
-        - Any financial figures, amounts, or monetary data
-        - Important dates and deadlines
-        - Company names, account numbers, or identifiers
-        - Potential risks or concerns
-        - Document quality and completeness
+        For documentType, use: "bank_statement", "financial", "legal", "invoice", "tax", or "other".
+        Do not include any text before or after the JSON object.
       `
     };
 
@@ -183,22 +249,20 @@ class OllamaClient {
     try {
       const response = await this.generateResponse(prompt, imageBase64, this.visionModel);
       
-      // Try to parse JSON response
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return {
-            ...parsed,
-            documentType: parsed.documentType || documentType,
-            extractionModel: this.visionModel
-          };
-        }
-      } catch (parseError) {
-        console.warn('Failed to parse JSON response, using fallback');
+      // Extract JSON from response
+      const extractedJSON = this.extractJSON(response);
+      
+      if (extractedJSON) {
+        return {
+          ...extractedJSON,
+          documentType: extractedJSON.documentType || documentType,
+          extractionModel: this.visionModel,
+          rawResponse: response.substring(0, 200) + '...' // Keep first 200 chars for debugging
+        };
       }
       
-      // Fallback if JSON parsing fails
+      // Fallback if JSON extraction fails
+      console.warn('JSON extraction failed, using fallback structure');
       return {
         documentType: documentType,
         rawResponse: response,
@@ -206,7 +270,8 @@ class OllamaClient {
         riskFactors: ['Unable to parse structured data from vision model'],
         keyFindings: ['Document analysis completed but data extraction failed'],
         confidence: 50,
-        extractionModel: this.visionModel
+        extractionModel: this.visionModel,
+        error: 'JSON parsing failed'
       };
     } catch (error) {
       console.error('Financial data extraction failed:', error);
@@ -226,83 +291,62 @@ class OllamaClient {
       - Document types: ${documentSummary.documentTypes.join(', ')}
       - Average confidence: ${documentSummary.averageConfidence}%
 
-      Please provide a detailed credit analysis in the following JSON format:
+      Respond ONLY with valid JSON in this exact format:
       {
-        "creditScore": number (300-850),
-        "rating": "Excellent/Good/Fair/Poor/Very Poor",
-        "riskLevel": "Low/Medium/High",
+        "creditScore": 650,
+        "rating": "Fair",
+        "riskLevel": "Medium",
         "recommendation": "detailed recommendation text",
-        "keyFactors": ["list of positive factors supporting the decision"],
-        "riskFactors": ["list of risk factors and concerns"],
-        "improvementSuggestions": ["specific suggestions for improvement"],
-        "maxCreditLimit": number,
-        "interestRate": number,
-        "reasoning": "detailed explanation of the scoring methodology",
-        "confidence": number (0-100),
+        "keyFactors": ["factor1", "factor2", "factor3"],
+        "riskFactors": ["risk1", "risk2"],
+        "improvementSuggestions": ["suggestion1", "suggestion2"],
+        "maxCreditLimit": 15000,
+        "interestRate": 12.5,
+        "reasoning": "detailed explanation of scoring methodology",
+        "confidence": 85,
         "analysisModel": "deepseek-r1:8b"
       }
 
-      ANALYSIS REQUIREMENTS:
-      1. Calculate a credit score based on:
-         - Income stability and amount
-         - Asset-to-liability ratios
-         - Cash flow patterns
-         - Risk factors identified
-         - Document completeness and quality
-
-      2. Provide specific reasoning for the score including:
-         - How each document contributed to the assessment
-         - Weight given to different factors
-         - Comparison to industry standards
-
-      3. Make practical recommendations for:
-         - Appropriate credit limits based on income/assets
-         - Interest rates reflecting the risk level
-         - Specific improvement areas
-
-      4. Consider the following risk factors heavily:
-         - Irregular income patterns
-         - High debt-to-income ratios
-         - Recent financial difficulties
-         - Incomplete documentation
-         - Legal or compliance issues
-
-      Provide a thorough, professional analysis that a loan officer could use to make informed decisions.
+      REQUIREMENTS:
+      - creditScore: number between 300-850
+      - rating: "Excellent", "Good", "Fair", "Poor", or "Very Poor"
+      - riskLevel: "Low", "Medium", or "High"
+      - All arrays should contain 2-5 relevant items
+      - All text fields should be professional and detailed
+      - Do not include any text before or after the JSON object
     `;
 
     try {
       const response = await this.generateResponse(prompt, null, this.reasoningModel);
       
-      // Try to parse JSON response
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return {
-            ...parsed,
-            analysisModel: this.reasoningModel,
-            generatedAt: new Date().toISOString()
-          };
-        }
-      } catch (parseError) {
-        console.warn('Failed to parse credit recommendation JSON, using fallback');
+      // Extract JSON from response
+      const extractedJSON = this.extractJSON(response);
+      
+      if (extractedJSON) {
+        return {
+          ...extractedJSON,
+          analysisModel: this.reasoningModel,
+          generatedAt: new Date().toISOString()
+        };
       }
       
-      // Fallback response
+      // Fallback response with valid structure
+      console.warn('Credit recommendation JSON extraction failed, using fallback');
       return {
         creditScore: 650,
         rating: 'Fair',
         riskLevel: 'Medium',
         recommendation: 'Unable to generate detailed recommendation due to parsing error. Manual review recommended.',
-        keyFactors: ['Document analysis completed'],
-        riskFactors: ['Analysis parsing failed'],
-        improvementSuggestions: ['Provide additional documentation'],
+        keyFactors: ['Document analysis completed', 'Multiple documents processed'],
+        riskFactors: ['Analysis parsing failed', 'Manual review required'],
+        improvementSuggestions: ['Provide additional documentation', 'Clarify financial statements'],
         maxCreditLimit: 10000,
         interestRate: 15.0,
         reasoning: 'Fallback analysis due to model response parsing failure',
         confidence: 60,
         analysisModel: this.reasoningModel,
-        rawResponse: response
+        rawResponse: response.substring(0, 200) + '...',
+        error: 'JSON parsing failed'
       };
     } catch (error) {
       console.error('Credit recommendation generation failed:', error);
