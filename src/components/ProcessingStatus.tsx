@@ -1,23 +1,25 @@
 import React from 'react';
-import { Loader2, FileText, Image, Brain, CheckCircle } from 'lucide-react';
+import { Loader2, FileText, Image, Brain, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface ProcessingStatusProps {
-  currentStage: 'uploading' | 'parsing' | 'extracting' | 'analyzing' | 'completed';
+  currentStage: 'uploading' | 'parsing' | 'extracting' | 'analyzing' | 'completed' | 'error';
   progress: number;
   currentFile?: string;
+  error?: string;
 }
 
 export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   currentStage,
   progress,
-  currentFile
+  currentFile,
+  error
 }) => {
   const stages = [
-    { key: 'uploading', label: 'Uploading Files', icon: FileText },
-    { key: 'parsing', label: 'Converting PDFs to Images', icon: Image },
-    { key: 'extracting', label: 'Extracting Data with Ollama', icon: Brain },
-    { key: 'analyzing', label: 'Analyzing Credit Worthiness', icon: Loader2 },
-    { key: 'completed', label: 'Analysis Complete', icon: CheckCircle }
+    { key: 'uploading', label: 'Uploading Files', icon: FileText, description: 'Sending files to server' },
+    { key: 'parsing', label: 'Converting PDFs to Images', icon: Image, description: 'Processing PDF documents' },
+    { key: 'extracting', label: 'Extracting Data with AI', icon: Brain, description: 'Using qwen2.5vl:7b for analysis' },
+    { key: 'analyzing', label: 'Analyzing Credit Worthiness', icon: Loader2, description: 'Using deepseek-r1:8b for recommendations' },
+    { key: 'completed', label: 'Analysis Complete', icon: CheckCircle, description: 'Ready to view results' }
   ];
 
   const getCurrentStageIndex = () => {
@@ -25,6 +27,31 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   };
 
   const currentStageIndex = getCurrentStageIndex();
+
+  // Show error state if there's an error
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl p-8 shadow-lg border border-red-200">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-red-800 mb-2">Processing Failed</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+            <h4 className="font-semibold text-red-800 mb-2">Troubleshooting Steps:</h4>
+            <ul className="text-sm text-red-700 space-y-1">
+              <li>• Check that the backend server is running on port 3001</li>
+              <li>• Verify Ollama is running with required models</li>
+              <li>• Ensure files are not corrupted or password-protected</li>
+              <li>• Check network connection and firewall settings</li>
+              <li>• Try refreshing the page and uploading again</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-200">
@@ -86,7 +113,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                     }`}
                   />
                 </div>
-                <div className="ml-4">
+                <div className="ml-4 flex-1">
                   <h4
                     className={`font-semibold ${
                       isActive
@@ -101,12 +128,28 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                   <p className="text-sm text-gray-500">
                     {isActive && 'Currently processing...'}
                     {isCompleted && 'Completed successfully'}
-                    {isUpcoming && 'Waiting...'}
+                    {isUpcoming && stage.description}
                   </p>
                 </div>
+                {isActive && (
+                  <div className="ml-4">
+                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
               </div>
             );
           })}
+        </div>
+
+        {/* Additional Info */}
+        <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 className="font-semibold text-blue-800 mb-2">Processing Information</h4>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p>• Using qwen2.5vl:7b for document extraction and computer vision</p>
+            <p>• Using deepseek-r1:8b for advanced credit analysis and reasoning</p>
+            <p>• Processing time varies based on document complexity and size</p>
+            <p>• All data is processed locally using your Ollama installation</p>
+          </div>
         </div>
       </div>
     </div>

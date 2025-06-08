@@ -21,6 +21,8 @@ export interface ExtractedData {
     assets?: number;
     liabilities?: number;
   };
+  confidence?: number;
+  error?: string;
 }
 
 export interface CreditRecommendation {
@@ -32,6 +34,9 @@ export interface CreditRecommendation {
   improvementSuggestions: string[];
   maxCreditLimit?: number;
   interestRate?: number;
+  reasoning?: string;
+  analysisModel?: string;
+  generatedAt?: string;
 }
 
 export interface ProcessingResult {
@@ -40,6 +45,7 @@ export interface ProcessingResult {
   extractedData: ExtractedData;
   imageCount: number;
   processingTime: number;
+  error?: string;
 }
 
 export interface AnalysisResults {
@@ -47,4 +53,23 @@ export interface AnalysisResults {
   creditRecommendation: CreditRecommendation;
   overallRisk: 'Low' | 'Medium' | 'High';
   confidence: number;
+  documentSummary?: {
+    totalDocuments: number;
+    documentTypes: string[];
+    averageConfidence: number;
+    totalProcessingTime: number;
+    totalImages: number;
+  };
+  modelInfo?: {
+    extractionModel: string;
+    analysisModel: string;
+    totalProcessingTime?: number;
+    error?: string;
+  };
+}
+
+export interface ApiError {
+  error: string;
+  details?: string;
+  code?: string;
 }
