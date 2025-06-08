@@ -162,7 +162,7 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT,'0.0.0.0', () => {
   console.log(`🚀 Credit Assessment Server running on port ${PORT}`);
   console.log(`🤖 Ollama Models:`);
   console.log(`   📄 Document Extraction: qwen2.5vl:7b`);
