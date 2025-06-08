@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { UploadedFile, AnalysisResults } from '../types';
 import { apiClient } from '../services/apiClient';
 
@@ -19,7 +20,7 @@ export const useFileProcessor = () => {
 
   const addFiles = useCallback((newFiles: File[]) => {
     const uploadedFiles: UploadedFile[] = newFiles.map(file => ({
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       name: file.name,
       size: file.size,
       type: file.type,

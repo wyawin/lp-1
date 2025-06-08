@@ -3,6 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs-extra';
+import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import { processDocuments } from './services/documentProcessor.js';
 import { analyzeCredit } from './services/creditAnalyzer.js';
@@ -56,7 +57,7 @@ app.post('/api/upload', upload.array('documents', 10), async (req, res) => {
     }
 
     const uploadedFiles = req.files.map(file => ({
-      id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+      id: uuidv4(),
       originalName: file.originalname,
       filename: file.filename,
       path: file.path,
@@ -162,7 +163,7 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT,'0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Credit Assessment Server running on port ${PORT}`);
   console.log(`🤖 Ollama Models:`);
   console.log(`   📄 Document Extraction: qwen2.5vl:7b`);
