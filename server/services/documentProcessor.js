@@ -1,4 +1,4 @@
-import pdf from 'pdf-poppler';
+import { fromPath } from 'pdf2pic';
 import sharp from 'sharp';
 import fs from 'fs-extra';
 import path from 'path';
@@ -48,7 +48,7 @@ async function processIndividualDocument(file) {
     let images = [];
     
     if (file.mimetype === 'application/pdf') {
-      // Convert PDF to images
+      // Convert PDF to images using pdf2pic
       images = await convertPdfToImages(file.path, tempDir);
     } else if (file.mimetype.startsWith('image/')) {
       // Process single image
@@ -95,26 +95,113 @@ async function processIndividualDocument(file) {
 
 async function convertPdfToImages(pdfPath, outputDir) {
   try {
-    const options = {
-      format: 'jpeg',
-      out_dir: outputDir,
-      out_prefix: 'page',
-      page: null // Convert all pages
-    };
+    console.log(`Converting PDF to images: ${pdfPath}`);
     
-    await pdf.convert(pdfPath, options);
+    // Configure pdf2pic with enhanced options for encrypted PDFs
+    const convert = fromPath(pdfPath, {
+      density: 200,           // Higher DPI for better quality
+      saveFilename: "page",   // Filename prefix
+      savePath: outputDir,    // Output directory
+      format: "jpeg",         // Output format
+      width: 1024,           // Max width
+      height: 1024,          // Max height
+      quality: 85,           // JPEG quality
+      preserveAspectRatio: true,
+      // Additional options for handling encrypted PDFs
+      graphicsMagick: false,  // Use ImageMagick instead of GraphicsMagick
+      buffer: false          // Save to files instead of buffer
+    });
+
+    // Get PDF info to determine page count
+    let pageCount = 1;
+    try {
+      // Try to get page count, fallback to processing all pages
+      const info = await convert.getInfo();
+      pageCount = info.pages || 1;
+    } catch (infoError) {
+      console.warn('Could not get PDF info, processing all pages:', infoError.message);
+    }
+
+    console.log(`PDF has ${pageCount} page(s)`);
+
+    // Convert all pages
+    const results = [];
     
-    // Get list of generated images
-    const files = await fs.readdir(outputDir);
-    const imageFiles = files
-      .filter(file => file.startsWith('page') && file.endsWith('.jpg'))
-      .sort()
-      .map(file => path.join(outputDir, file));
+    if (pageCount === 1) {
+      // Single page conversion
+      try {
+        const result = await convert(1, { responseType: "image" });
+        if (result && result.path) {
+          results.push(result.path);
+        }
+      } catch (pageError) {
+        console.warn('Failed to convert page 1:', pageError.message);
+        throw new Error(`Failed to convert PDF page 1: ${pageError.message}`);
+      }
+    } else {
+      // Multi-page conversion
+      for (let page = 1; page <= pageCount; page++) {
+        try {
+          const result = await convert(page, { responseType: "image" });
+          if (result && result.path) {
+            results.push(result.path);
+          }
+        } catch (pageError) {
+          console.warn(`Failed to convert page ${page}:`, pageError.message);
+          // Continue with other pages even if one fails
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      // Fallback: try to convert without specifying pages
+      try {
+        console.log('Attempting fallback conversion...');
+        const fallbackResult = await convert.bulk(-1, { responseType: "image" });
+        if (Array.isArray(fallbackResult)) {
+          results.push(...fallbackResult.map(r => r.path).filter(Boolean));
+        } else if (fallbackResult && fallbackResult.path) {
+          results.push(fallbackResult.path);
+        }
+      } catch (fallbackError) {
+        throw new Error(`PDF conversion failed completely: ${fallbackError.message}`);
+      }
+    }
+
+    // Verify files exist and are readable
+    const validImages = [];
+    for (const imagePath of results) {
+      try {
+        await fs.access(imagePath);
+        const stats = await fs.stat(imagePath);
+        if (stats.size > 0) {
+          validImages.push(imagePath);
+        }
+      } catch (accessError) {
+        console.warn(`Generated image not accessible: ${imagePath}`);
+      }
+    }
+
+    if (validImages.length === 0) {
+      throw new Error('No valid images were generated from PDF');
+    }
+
+    console.log(`Successfully converted PDF to ${validImages.length} image(s)`);
+    return validImages;
     
-    return imageFiles;
   } catch (error) {
     console.error('PDF conversion failed:', error);
-    throw new Error(`Failed to convert PDF to images: ${error.message}`);
+    
+    // Enhanced error handling for different PDF issues
+    if (error.message.includes('encrypted') || error.message.includes('password')) {
+      throw new Error('PDF is password protected or encrypted. Please provide an unlocked version.');
+    } else if (error.message.includes('corrupt') || error.message.includes('damaged')) {
+      throw new Error('PDF file appears to be corrupted or damaged.');
+    } else if (error.message.includes('permission')) {
+      throw new Error('Insufficient permissions to process this PDF file.');
+    } else {
+      throw new Error(`Failed to convert PDF to images: ${error.message}`);
+    }
   }
 }
 
@@ -122,13 +209,18 @@ async function processImage(imagePath, outputDir) {
   try {
     const outputPath = path.join(outputDir, 'processed-image.jpg');
     
-    // Optimize image for Ollama processing
+    // Optimize image for Ollama processing with enhanced settings
     await sharp(imagePath)
       .resize(1024, 1024, { 
         fit: 'inside',
-        withoutEnlargement: true 
+        withoutEnlargement: true,
+        background: { r: 255, g: 255, b: 255, alpha: 1 } // White background for transparency
       })
-      .jpeg({ quality: 85 })
+      .jpeg({ 
+        quality: 90,
+        progressive: true,
+        mozjpeg: true // Better compression
+      })
       .toFile(outputPath);
     
     return outputPath;

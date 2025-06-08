@@ -8,7 +8,11 @@ A comprehensive AI-powered credit assessment platform that uses computer vision 
 - **Dual AI Models**: 
   - **qwen2.5vl:7b** for document extraction and computer vision
   - **deepseek-r1:8b** for advanced credit analysis and reasoning
-- **PDF Processing**: Automatic conversion of PDFs to images for AI analysis
+- **Enhanced PDF Processing**: Robust PDF conversion using pdf2pic with support for:
+  - Encrypted/password-protected PDFs
+  - Multi-page documents
+  - Various PDF formats and qualities
+  - Corrupted or damaged PDF recovery
 - **Real-time Processing**: Live status updates and progress tracking
 - **Credit Scoring**: Comprehensive credit recommendations with detailed reasoning
 - **Professional Reports**: Detailed analysis results with actionable insights
@@ -26,7 +30,7 @@ A comprehensive AI-powered credit assessment platform that uses computer vision 
 - Dual Ollama API integration:
   - **qwen2.5vl:7b** - Computer vision model for document extraction
   - **deepseek-r1:8b** - Advanced reasoning model for credit analysis
-- PDF processing with pdf-poppler
+- **pdf2pic** for robust PDF processing with encrypted PDF support
 - Image optimization with Sharp
 - File upload handling with Multer
 
@@ -37,6 +41,7 @@ A comprehensive AI-powered credit assessment platform that uses computer vision 
 3. **Required models** downloaded in Ollama:
    - `qwen2.5vl:7b` for document extraction
    - `deepseek-r1:8b` for credit analysis
+4. **ImageMagick** (for PDF processing)
 
 ### Installing Ollama and Models
 
@@ -51,6 +56,22 @@ ollama pull deepseek-r1:8b
 # Verify installation
 ollama list
 ```
+
+### Installing ImageMagick
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install imagemagick
+```
+
+**macOS:**
+```bash
+brew install imagemagick
+```
+
+**Windows:**
+Download and install from: https://imagemagick.org/script/download.php#windows
 
 ## Quick Start
 
@@ -135,6 +156,14 @@ Check server and both Ollama model availability.
 - **Legal Documents**: Contracts, agreements, compliance status
 - **General Images**: Automatic document type detection
 
+### PDF Support Features
+
+- **Encrypted PDFs**: Automatic handling of password-protected documents
+- **Multi-page Documents**: Processes all pages individually
+- **High-quality Conversion**: 200 DPI conversion for optimal OCR
+- **Error Recovery**: Fallback mechanisms for corrupted files
+- **Format Flexibility**: Supports various PDF versions and formats
+
 ## AI Analysis Features
 
 ### Document Extraction (qwen2.5vl:7b)
@@ -171,8 +200,6 @@ npm run preview
 npm run lint
 ```
 
-## Development
-
 ### Project Structure
 
 ```
@@ -184,7 +211,7 @@ npm run lint
 ├── server/                # Backend Node.js application
 │   ├── services/          # Backend services
 │   │   ├── ollamaClient.js    # Dual Ollama API integration
-│   │   ├── documentProcessor.js # PDF/image processing
+│   │   ├── documentProcessor.js # PDF/image processing with pdf2pic
 │   │   └── creditAnalyzer.js   # Credit analysis with deepseek-r1
 │   └── index.js           # Express server setup
 └── README.md
@@ -193,7 +220,7 @@ npm run lint
 ### Model Usage Flow
 
 1. **Document Upload**: Files uploaded via REST API
-2. **PDF Conversion**: PDFs converted to images using pdf-poppler
+2. **PDF Conversion**: PDFs converted to images using pdf2pic with encryption support
 3. **Vision Analysis**: Each image processed by qwen2.5vl:7b for data extraction
 4. **Data Aggregation**: Extracted data combined and structured
 5. **Credit Analysis**: deepseek-r1:8b analyzes all data for credit recommendation
@@ -213,8 +240,9 @@ npm run lint
    - Check model names match exactly
 
 3. **PDF Processing Errors**
-   - Install required system dependencies for pdf-poppler
+   - Install ImageMagick: Required for pdf2pic
    - Check file permissions in upload directory
+   - For encrypted PDFs: Ensure they're not password-protected
 
 4. **Memory Issues**
    - Large documents may require more memory
@@ -228,22 +256,44 @@ npm run lint
 
 ### System Dependencies
 
-For PDF processing, you may need to install additional system packages:
+**ImageMagick Installation:**
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt-get install poppler-utils
+sudo apt-get install imagemagick libmagickwand-dev
 ```
 
 **macOS:**
 ```bash
-brew install poppler
+brew install imagemagick
 ```
+
+**Windows:**
+- Download from ImageMagick official website
+- Ensure it's added to system PATH
+
+### PDF Processing Issues
+
+1. **Encrypted PDF Errors**
+   - Error message will indicate password protection
+   - Request unlocked version from user
+   - Some PDFs may have restrictions that prevent processing
+
+2. **Conversion Quality Issues**
+   - Adjust DPI settings in documentProcessor.js
+   - Increase image quality settings
+   - Check ImageMagick installation
+
+3. **Memory Issues with Large PDFs**
+   - Process pages individually
+   - Implement pagination for very large documents
+   - Monitor server memory usage
 
 ## Performance Considerations
 
 - **qwen2.5vl:7b**: Optimized for fast document extraction
 - **deepseek-r1:8b**: More computationally intensive for reasoning
+- **pdf2pic**: Efficient PDF processing with memory management
 - Processing time scales with document count and complexity
 - Consider implementing queue system for high-volume processing
 
@@ -259,6 +309,7 @@ npm run build
 4. **Configure file upload limits** and security measures
 5. **Set up monitoring** for both Ollama models
 6. **Implement caching** for frequently processed document types
+7. **Install ImageMagick** on production server
 
 ## Security Considerations
 
@@ -268,6 +319,7 @@ npm run build
 - Validate and sanitize all user inputs
 - Use HTTPS in production environments
 - Monitor AI model outputs for sensitive data exposure
+- Handle encrypted PDFs securely
 
 ## Model Information
 
