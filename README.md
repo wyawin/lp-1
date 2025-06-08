@@ -52,7 +52,7 @@ ollama pull deepseek-r1:8b
 ollama list
 ```
 
-## Installation
+## Quick Start
 
 1. **Install dependencies**:
 ```bash
@@ -64,19 +64,44 @@ npm install
 ollama serve
 ```
 
-3. **Start the backend server**:
-```bash
-npm run server
-```
-
-4. **Start the frontend development server**:
+3. **Start both frontend and backend** (recommended):
 ```bash
 npm run dev
 ```
 
-The application will be available at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
+This will start:
+- Frontend development server on http://localhost:5173
+- Backend API server on http://localhost:3001
+
+### Alternative: Start Services Separately
+
+**Start the backend server**:
+```bash
+npm run dev:backend
+```
+
+**Start the frontend development server** (in another terminal):
+```bash
+npm run dev:frontend
+```
+
+## Environment Configuration
+
+Create a `.env` file in the root directory (copy from `.env.example`):
+
+```env
+# API Configuration
+VITE_API_BASE_URL=http://localhost:3001/api
+
+# Ollama Configuration (for reference)
+OLLAMA_BASE_URL=http://localhost:11434
+VISION_MODEL=qwen2.5vl:7b
+REASONING_MODEL=deepseek-r1:8b
+
+# Server Configuration (for reference)
+PORT=3001
+UPLOAD_MAX_SIZE=10485760
+```
 
 ## AI Model Architecture
 
@@ -124,28 +149,27 @@ Check server and both Ollama model availability.
 - Detailed scoring methodology
 - Professional recommendation generation
 
-## Configuration
+## Development Scripts
 
-### Environment Variables
+```bash
+# Start both frontend and backend concurrently
+npm run dev
 
-Create a `.env` file in the root directory:
+# Start only frontend (Vite dev server)
+npm run dev:frontend
 
-```env
-PORT=3001
-OLLAMA_BASE_URL=http://localhost:11434
-VISION_MODEL=qwen2.5vl:7b
-REASONING_MODEL=deepseek-r1:8b
-UPLOAD_MAX_SIZE=10485760
+# Start only backend (Express server)
+npm run dev:backend
+
+# Build frontend for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run ESLint
+npm run lint
 ```
-
-### Ollama Configuration
-
-The application expects Ollama to be running on `localhost:11434` with both required models available:
-
-- **qwen2.5vl:7b**: For document extraction and computer vision
-- **deepseek-r1:8b**: For credit analysis and reasoning
-
-You can modify the model configuration in `server/services/ollamaClient.js`.
 
 ## Development
 
@@ -196,6 +220,11 @@ You can modify the model configuration in `server/services/ollamaClient.js`.
    - Large documents may require more memory
    - Consider implementing file size limits
    - Monitor server memory usage during processing
+
+5. **Port Conflicts**
+   - Frontend runs on port 5173 (Vite default)
+   - Backend runs on port 3001
+   - Ensure these ports are available
 
 ### System Dependencies
 
